@@ -1,8 +1,10 @@
 #include "stdio.h"
+#include "ext\mpc.h"
+
 #define MAX_INPUT 2048
 static char input[MAX_INPUT];
 
-// TODO: make repl crossplataform later as in chapter 4
+// TODO: make repl crossplataform as in chapter 4
 
 int cmd() { 
 	puts("Cispy version 0.1. Press ctr+c to exit.\n");
