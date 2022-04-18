@@ -7,11 +7,61 @@ static char input[MAX_INPUT];
 // ----------- parser
 
 #include "ext\mpc.h"
+#include "stdlib.h"
+#include "errno.h"
+
+enum { LVAL_NUM, LVAL_ERR };
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+
+typedef struct {
+	int type;
+	long num;
+	int err;
+} lval;
 
 mpc_parser_t* num;
 mpc_parser_t* op;
 mpc_parser_t* expr;
 mpc_parser_t* cispy;
+
+lval lval_num(long x) {
+	lval v = { .type = LVAL_NUM, .num = x };
+	return v;
+}
+
+lval lval_err(long x) {
+	lval v = { .type = LVAL_ERR, .err = x };
+	return v;
+}
+
+void lval_print(lval v) {
+	switch (v.type) {
+	case LVAL_NUM:
+		printf("%li", v.num);
+		break;
+	case LVAL_ERR:
+		switch (v.err) {
+		case LERR_BAD_NUM:
+			puts("ERROR: Invalid number");
+			break;
+		case LERR_BAD_OP:
+			puts("ERROR: Invalid operator");
+			break;
+		case LERR_DIV_ZERO:
+			puts("ERROR: Division by zero");
+			break;
+		
+		default:
+			assert("Unreachable lval_print 2");
+		}
+	
+		break;
+	default:
+		assert("Unreachable lval_print");
+	}
+
+	putchar('\n');
+}
 
 void init_parse() {
 	num = mpc_new("number");
@@ -36,28 +86,45 @@ void cleanup_parse() {
 › Add the function max, which returns the biggest number. For example max 1 5 3 is 5.
 › Change the minus operator - so that when it receives one argument it negates it.
 */
-long eval_op(long l, char* op, long r) {
-	if (strcmp(op, "+") == 0) return l+r;
-	if (strcmp(op, "-") == 0) return l-r;
-	if (strcmp(op, "*") == 0) return l*r;
-	if (strcmp(op, "/") == 0) return l/r;
-	if (strcmp(op, "%") == 0) return l%r;
-	if (strcmp(op, "^") == 0) return pow(l, r);
-	assert("Unreachable");
-	return 0;
+lval eval_op(lval l, char* op, lval r) {
+	if (l.type == LVAL_ERR) return l;
+	if (r.type == LVAL_ERR) return r;
+
+	if (strcmp(op, "+") == 0) return lval_num(l.num+r.num);
+	if (strcmp(op, "-") == 0) return  lval_num(l.num-r.num);
+	if (strcmp(op, "*") == 0) return  lval_num(l.num*r.num);
+	if (strcmp(op, "%") == 0) return  lval_num(l.num%r.num);
+	if (strcmp(op, "^") == 0) return  lval_num(pow(l.num, r.num));
+	if (strcmp(op, "/") == 0) { 
+		if (r.num == 0) {
+			return lval_err(LERR_DIV_ZERO);
+		}
+
+		return lval_num(l.num/r.num);
+	}
+	return lval_err(LERR_BAD_OP);
 }
-	
-long eval(mpc_ast_t* t) {
+
+/* TODO (ch8)
+› How do you give an enum a name?
+› Can you use a union in the definition of lval?
+› Extend parsing and evaluation to support decimal types using a double field.
+*/
+lval eval(mpc_ast_t* t) {
 	if (strstr(t->tag, "number")) {
-		return atoi(t->contents);
+		errno = 0;
+		long x = strtol(t->contents, NULL, 10);
+		if (errno != ERANGE) {
+			return lval_num(x);
+		}
+		return lval_num(LERR_BAD_NUM);
 	}
 
 	char* op = t->children[1]->contents;
-	long x = eval(t->children[2]);
+	lval x = eval(t->children[2]);
 	int i = 3;
 
 	while (strstr(t->children[i]->tag, "expr")) {
-		puts("oi\n");
 		x = eval_op(x, op, eval(t->children[i]));
 		i++;
 	}
@@ -72,8 +139,8 @@ long eval(mpc_ast_t* t) {
 void eval_input() {
 	mpc_result_t r;
 	if (mpc_parse("<stdin>", input, cispy, &r)) {
-		long rs = eval(r.output);
-		printf("%li\n", rs);
+		lval rs = eval(r.output);
+		lval_print(rs);
 		mpc_ast_delete(r.output);
 	} else {
 		mpc_err_print(r.error);
