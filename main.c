@@ -45,12 +45,16 @@ void eval_input() {
 	}
 }
 
-int cmd() { 
+void cmd() { 
 	puts("Cispy version 0.1. Press ctr+c to exit.\n");
 
 	while(1) {
 		fputs("cispy> ", stdout);
 		fgets(input, MAX_INPUT, stdin);
+
+		if (strcmp(input, "q"))
+			return;
+
 		eval_input();
 	}
 }
